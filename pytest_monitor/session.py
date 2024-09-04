@@ -15,6 +15,7 @@ from pytest_monitor.sys_utils import (
     collect_ci_info,
     determine_scm_revision,
 )
+from time import sleep
 
 
 class PyTestMonitorSession:
@@ -105,6 +106,14 @@ class PyTestMonitorSession:
                 warnings.warn(msg)
 
     def set_environment_info(self, env):
+        # When using pytest-xdist there's a race condition where multiple workers may try
+        # to insert the exc_context at the same time, causing
+        # "UNIQUE constraint failed: EXECUTION_CONTEXTS.ENV_H".
+        # Therefore add a short sleep depending on the ID of the worker, e.g
+        # worker gw3 will incur a 3 * 100ms delay.
+        if os.getenv('PYTEST_XDIST_WORKER'):
+            sleep(0.1 * int(os.getenv('PYTEST_XDIST_WORKER').replace('gw','')))
+
         self.__eid = self.get_env_id(env)
         db_id, remote_id = self.__eid
         if self.__db and db_id is None:
