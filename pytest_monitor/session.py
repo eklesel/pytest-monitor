@@ -86,6 +86,14 @@ class PyTestMonitorSession:
                     d[_tag_info[0]] = _tag_info[1]
         description = json.dumps(d)
         # Now get memory usage base and create the database
+        
+        # When using pytest-xdist there's a race condition where multiple workers may try
+        # to insert the exc_context and session info at the same time, causing
+        # "UNIQUE constraint failed: EXECUTION_CONTEXTS.ENV_H".
+        # Therefore add a short sleep depending correspondong to the ID of the worker, e.g
+        # worker gw0 will have no delay gw3 will incur a 3 * 200ms delay.
+        if os.getenv('PYTEST_XDIST_WORKER'):
+            sleep(0.2 * int(os.getenv('PYTEST_XDIST_WORKER').replace('gw','')))
         self.prepare()
         self.set_environment_info(ExecutionContext())
         if self.__db:
@@ -106,13 +114,6 @@ class PyTestMonitorSession:
                 warnings.warn(msg)
 
     def set_environment_info(self, env):
-        # When using pytest-xdist there's a race condition where multiple workers may try
-        # to insert the exc_context at the same time, causing
-        # "UNIQUE constraint failed: EXECUTION_CONTEXTS.ENV_H".
-        # Therefore add a short sleep depending on the ID of the worker, e.g
-        # worker gw3 will incur a 3 * 100ms delay.
-        if os.getenv('PYTEST_XDIST_WORKER'):
-            sleep(0.1 * int(os.getenv('PYTEST_XDIST_WORKER').replace('gw','')))
 
         self.__eid = self.get_env_id(env)
         db_id, remote_id = self.__eid
